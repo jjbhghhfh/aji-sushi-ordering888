@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ShoppingCart, X, Plus, Minus, Edit, Trash2, Clock, Phone, MapPin, DollarSign, Printer, Settings, Search, Home, Lock, Bell, Check, AlertCircle, ArrowUp, ArrowDown, Globe, FileText, Package } from 'lucide-react';
+import { firebaseDB } from './firebase';
 
 const AjiSushiOrdering = () => {
   const [view, setView] = useState('customer');
@@ -7,6 +8,7 @@ const AjiSushiOrdering = () => {
   const [loginPassword, setLoginPassword] = useState('');
   const [isAdminAuthenticated, setIsAdminAuthenticated] = useState(false);
   const [showCheckout, setShowCheckout] = useState(false);
+  const [isLoadingData, setIsLoadingData] = useState(true);
   
   // 新增：订单等待确认状态
   const [waitingForConfirmation, setWaitingForConfirmation] = useState(false);
@@ -260,6 +262,61 @@ const AjiSushiOrdering = () => {
   const tax = cartTotal * TAX_RATE;
   const total = cartTotal + tax;
 
+  // Load data from Firebase on mount
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        setIsLoadingData(true);
+        
+        // Load menu items
+        const items = await firebaseDB.getMenuItems();
+        if (items.length > 0) {
+          setMenuItems(items);
+        }
+        
+        // Load orders
+        const ordersData = await firebaseDB.getOrders();
+        if (ordersData.length > 0) {
+          setOrders(ordersData);
+        }
+        
+        // Load categories
+        const categoriesData = await firebaseDB.getCategories();
+        if (categoriesData.length > 0) {
+          setMenuCategories(categoriesData);
+        }
+        
+        // Load restaurant info
+        const restaurantData = await firebaseDB.getRestaurantInfo();
+        if (restaurantData) {
+          setRestaurantInfo(restaurantData);
+        }
+        
+        setIsLoadingData(false);
+      } catch (error) {
+        console.error('Error loading data:', error);
+        setIsLoadingData(false);
+      }
+    };
+    
+    loadData();
+    
+    // Set up real-time listeners
+    const unsubscribeMenu = firebaseDB.onMenuItemsChange((items) => {
+      setMenuItems(items);
+    });
+    
+    const unsubscribeOrders = firebaseDB.onOrdersChange((ordersData) => {
+      setOrders(ordersData);
+    });
+    
+    // Cleanup listeners
+    return () => {
+      unsubscribeMenu();
+      unsubscribeOrders();
+    };
+  }, []);
+
   
   const scrollToCategory = (categoryName) => {
     setSelectedCategory(categoryName);
@@ -297,7 +354,7 @@ const AjiSushiOrdering = () => {
     return matchesCategory && matchesSearch && item.available;
   });
 
-  const submitOrder = () => {
+  const submitOrder = async () => {
     if (cart.length === 0 || !customerInfo.name || !customerInfo.phone || !customerInfo.email) {
       alert('Please fill in all required fields');
       return;
@@ -317,9 +374,17 @@ const AjiSushiOrdering = () => {
       confirmedAt: null
     };
     
-    setOrders([newOrder, ...orders]);
-    setCustomerOrderId(newOrder.id);
-    setWaitingForConfirmation(true);
+    // Save to Firebase
+    try {
+      await firebaseDB.saveOrder(newOrder);
+      setOrders([newOrder, ...orders]);
+      setCustomerOrderId(newOrder.id);
+      setWaitingForConfirmation(true);
+    } catch (error) {
+      console.error('Error submitting order:', error);
+      alert('Failed to submit order. Please try again.');
+      return;
+    }
     
     setCart([]);
     setCustomerInfo({ name: '', phone: '', email: '', orderType: 'pickup', notes: '' });
@@ -386,7 +451,7 @@ const AjiSushiOrdering = () => {
   };
 
   // 添加菜品
-  const addMenuItem = () => {
+  const addMenuItem = async () => {
     if (!newItem.name || !newItem.price || !newItem.description) {
       alert('Please fill in all required fields');
       return;
@@ -417,7 +482,17 @@ const AjiSushiOrdering = () => {
       comboConfig: newItem.type === 'combo' ? { ...newItem.comboConfig } : undefined
     };
     
-    setMenuItems([...menuItems, item]);
+    // Save to Firebase
+    try {
+      await firebaseDB.saveMenuItem(item);
+      setMenuItems([...menuItems, item]);
+      alert('Menu item added successfully!');
+    } catch (error) {
+      console.error('Error adding menu item:', error);
+      alert('Failed to add menu item. Please try again.');
+      return;
+    }
+    
     setNewItem({
       name: '',
       category: menuCategories[0]?.name || 'Appetizers',
@@ -440,52 +515,78 @@ const AjiSushiOrdering = () => {
     alert('Menu item added successfully!');
   };
 
-  const updateMenuItem = () => {
+  const updateMenuItem = async () => {
     if (!editingItem.name || !editingItem.price || !editingItem.description) {
       alert('Please fill in all required fields');
       return;
     }
     
-    setMenuItems(menuItems.map(item => 
-      item.id === editingItem.id ? editingItem : item
-    ));
-    setEditingItem(null);
-    alert('Menu item updated successfully!');
-  };
-
-  const deleteMenuItem = (id) => {
-    if (confirm('Delete this menu item?')) {
-      setMenuItems(menuItems.filter(item => item.id !== id));
+    try {
+      await firebaseDB.updateMenuItem(editingItem);
+      setMenuItems(menuItems.map(item => 
+        item.id === editingItem.id ? editingItem : item
+      ));
+      setEditingItem(null);
+      alert('Menu item updated successfully!');
+    } catch (error) {
+      console.error('Error updating menu item:', error);
+      alert('Failed to update menu item. Please try again.');
     }
   };
 
-  const confirmOrder = () => {
+  const deleteMenuItem = async (id) => {
+    if (confirm('Delete this menu item?')) {
+      try {
+        await firebaseDB.deleteMenuItem(id);
+        setMenuItems(menuItems.filter(item => item.id !== id));
+        alert('Menu item deleted successfully!');
+      } catch (error) {
+        console.error('Error deleting menu item:', error);
+        alert('Failed to delete menu item. Please try again.');
+      }
+    }
+  };
+
+  const confirmOrder = async () => {
     if (!prepTime || parseInt(prepTime) < 1) {
       alert('Please enter a valid preparation time');
       return;
     }
     
-    setOrders(orders.map(order => 
-      order.id === confirmingOrder.id 
-        ? { 
-            ...order, 
-            status: 'confirmed', 
-            prepTime: parseInt(prepTime),
-            confirmedAt: new Date().toLocaleString()
-          }
-        : order
-    ));
+    const updatedOrder = {
+      ...confirmingOrder,
+      status: 'confirmed',
+      prepTime: parseInt(prepTime),
+      confirmedAt: new Date().toLocaleString()
+    };
     
-    setConfirmingOrder(null);
-    setPrepTime('');
-    alert(`Order #${confirmingOrder.id} confirmed!\nPreparation time: ${prepTime} minutes`);
+    try {
+      await firebaseDB.updateOrder(updatedOrder);
+      setOrders(orders.map(order => 
+        order.id === confirmingOrder.id ? updatedOrder : order
+      ));
+      setConfirmingOrder(null);
+      setPrepTime('');
+      alert(`Order #${confirmingOrder.id} confirmed!\nPreparation time: ${prepTime} minutes`);
+    } catch (error) {
+      console.error('Error confirming order:', error);
+      alert('Failed to confirm order. Please try again.');
+    }
   };
 
-  const completeOrder = (orderId) => {
+  const completeOrder = async (orderId) => {
     if (confirm('Mark this order as completed?')) {
-      setOrders(orders.map(order => 
-        order.id === orderId ? { ...order, status: 'completed' } : order
-      ));
+      try {
+        const order = orders.find(o => o.id === orderId);
+        const updatedOrder = { ...order, status: 'completed' };
+        await firebaseDB.updateOrder(updatedOrder);
+        setOrders(orders.map(order => 
+          order.id === orderId ? updatedOrder : order
+        ));
+      } catch (error) {
+        console.error('Error completing order:', error);
+        alert('Failed to complete order. Please try again.');
+      }
     }
   };
 
