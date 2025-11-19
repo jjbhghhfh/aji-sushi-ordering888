@@ -479,17 +479,18 @@ const AjiSushiOrdering = () => {
       available: true,
       tags: [],
       type: newItem.type,
-      comboConfig: newItem.type === 'combo' ? { ...newItem.comboConfig } : undefined
+      ...(newItem.type === 'combo' ? { comboConfig: { ...newItem.comboConfig } } : {})
     };
     
     // Save to Firebase
     try {
       await firebaseDB.saveMenuItem(item);
       setMenuItems([...menuItems, item]);
+      setShowAddItem(false);
       alert('Menu item added successfully!');
     } catch (error) {
       console.error('Error adding menu item:', error);
-      alert('Failed to add menu item. Please try again.');
+      alert(`Failed to add menu item: ${error.message}\n\nPlease check:\n1. Firebase is properly configured\n2. Firestore rules allow writes\n3. Check browser console for details`);
       return;
     }
     
