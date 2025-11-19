@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ShoppingCart, X, Plus, Minus, Edit, Trash2, Clock, Phone, MapPin, DollarSign, Printer, Settings, Search, Home, Lock, Bell, Check, AlertCircle, ArrowUp, ArrowDown, Globe, FileText, Package } from 'lucide-react';
 import { firebaseDB } from './firebase';
-
+import { playOrderNotificationSound } from './audioUtils';
 const AjiSushiOrdering = () => {
   const [view, setView] = useState('customer');
   const [adminPassword, setAdminPassword] = useState('admin123');
@@ -380,6 +380,7 @@ const AjiSushiOrdering = () => {
       setOrders([newOrder, ...orders]);
       setCustomerOrderId(newOrder.id);
       setWaitingForConfirmation(true);
+      await playOrderNotificationSound();
     } catch (error) {
       console.error('Error submitting order:', error);
       alert('Failed to submit order. Please try again.');
