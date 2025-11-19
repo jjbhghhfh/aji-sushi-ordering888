@@ -18,17 +18,17 @@ const AjiSushiOrdering = () => {
   const [restaurantInfo, setRestaurantInfo] = useState({
     name: 'AJI SUSHI',
     tagline: 'Authentic Japanese Cuisine',
-    phone: '(555) 123-4567',
-    address: '123 Main Street, Your City, ST 12345',
-    email: 'info@ajisushi.com',
+    phone: '8452786333',
+    address: '1620 ny-22 brewster, ny, 10509',
+    email: 'ajidiysushi@gmail.com',
     hours: {
-      monday: '11:00 AM - 9:00 PM',
+      monday: 'Close',
       tuesday: '11:00 AM - 9:00 PM',
       wednesday: '11:00 AM - 9:00 PM',
       thursday: '11:00 AM - 9:00 PM',
-      friday: '11:00 AM - 10:00 PM',
-      saturday: '12:00 PM - 10:00 PM',
-      sunday: '12:00 PM - 9:00 PM'
+      friday: '11:00 AM - 9:00 PM',
+      saturday: '12:00 PM - 9:00 PM',
+      sunday: '12:00 PM - 8:30 PM'
     }
   });
 
